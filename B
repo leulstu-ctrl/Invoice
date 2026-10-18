@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InvoicelyPro — 100% Private Invoice & Proposal Studio</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- HTML2PDF.js for crisp client-side PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f8fafc;
+    }
+    .locked-preview {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .watermark-overlay {
+      background-image: repeating-linear-gradient(
+        -35deg,
+        transparent,
+        transparent 90px,
+        rgba(15, 23, 42, 0.03) 90px,
+        rgba(15, 23, 42, 0.03) 180px
+      );
+      pointer-events: none;
+    }
+    @media print {
+      body.is-locked * {
+        display: none !important;
+      }
+      body.is-locked::after {
+        content: "Printing is disabled in Preview Mode. Please unlock InvoicelyPro with a valid license key to export or print clean documents.";
+        display: block !important;
+        font-size: 20px;
+        font-weight: bold;
+        padding: 50px;
+        text-align: center;
+        color: #ef4444;
+      }
+    }
+  </style>
+</head>
+<body class="is-locked text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+          IP
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-slate-900 text-lg tracking-tight">InvoicelyPro</span>
+            <span id="statusBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+              Preview Mode
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 hidden sm:block">100% Local-First • Zero Cloud Database • Instant PDF</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <!-- Document Type Switcher -->
+        <div class="bg-slate-100 p-1 rounded-lg flex items-center text-xs font-semibold">
+          <button id="btnModeInvoice" onclick="setDocType('INVOICE')" class="px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition">
+            Invoice
+          </button>
+          <button id="btnModeProposal" onclick="setDocType('PROPOSAL')" class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+            Proposal
+          </button>
+        </div>
+
+        <!-- Convert Proposal to Invoice 1-Click Button -->
+        <button id="btnConvertToInvoice" onclick="convertToInvoice()" class="hidden items-center space-x-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg hover:bg-emerald-100 transition">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          <span>Convert to Invoice</span>
+        </button>
+
+        <!-- Primary Export PDF CTA -->
+        <button onclick="handleExportClick()" class="flex items-center space-x-2 text-sm font-semibold bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Download PDF</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAGIC BOOKMARK BANNER (Shown only when Pro is unlocked) -->
+  <div id="magicLinkBanner" class="hidden bg-indigo-900 text-indigo-100 text-xs py-2 px-4">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <i data-lucide="sparkles" class="w-4 h-4 text-amber-400 shrink-0"></i>
+        <span><strong>Pro Activated!</strong> Your license & company profile are saved in this browser. Bookmark your personal auto-login link for instant access anytime:</span>
+      </div>
+      <div class="flex items-center space-x-3">
+        <button onclick="copyMagicLink()" class="underline font-semibold text-white hover:text-amber-300">Copy Magic Link</button>
+        <a href="https://sandbox.polar.sh/purchases" target="_blank" rel="noopener noreferrer" class="text-indigo-300 hover:text-white underline">Manage Subscription</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- LEFT COLUMN: LIVE EDITOR FORM (5 cols) -->
+    <div class="lg:col-span-5 space-y-6 overflow-y-auto">
+      
+      <!-- Brand & Customization Card -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">Branding & Settings</h2>
+          <button onclick="resetForm()" class="text-xs text-slate-400 hover:text-red-600 transition">Reset Demo</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Company Logo</label>
+            <input type="file" id="logoInput" accept="image/*" onchange="handleLogoUpload(event)" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Accent Color</label>
+            <div class="flex items-center space-x-2 pt-1">
+              <button onclick="setAccentColor('#4f46e5')" class="w-6 h-6 rounded-full bg-indigo-600 ring-2 ring-offset-1 ring-indigo-600"></button>
+              <button onclick="setAccentColor('#0f172a')" class="w-6 h-6 rounded-full bg-slate-900"></button>
+              <button onclick="setAccentColor('#059669')" class="w-6 h-6 rounded-full bg-emerald-600"></button>
+              <button onclick="setAccentColor('#2563eb')" class="w-6 h-6 rounded-full bg-blue-600"></button>
+              <button onclick="setAccentColor('#e11d48')" class="w-6 h-6 rounded-full bg-rose-600"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 pt-2">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Currency</label>
+            <select id="currencySelect" onchange="updatePreview()" class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option value="$">USD ($)</option>
+              <option value="€">EUR (€)</option>
+              <option value="£">GBP (£)</option>
+              <option value="CA$">CAD (CA$)</option>
+              <option value="A$">AUD (A$)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Document #</label>
+            <input type="text" id="docNumber" value="INV-2026-001" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1" id="dueDateLabel">Due Date</label>
+            <input type="date" id="dueDate" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Sender Details (Auto-saved in Browser) -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">From (Your Business)</h2>
+          <span class="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+            <i data-lucide="check-circle-2" class="w-3 h-3"></i> Auto-saved locally
+          </span>
+        </div>
+        <input type="text" id="fromName" placeholder="Your Business or Full Name" value="Apex Digital Studio LLC" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        <input type="email" id="fromEmail" placeholder="billing@yourdomain.com" value="hello@apexstudio.io" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        <textarea id="fromAddress" rows="2" placeholder="Street Address, City, State, ZIP, Tax ID" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">548 Market St, Suite 32140, San Francisco, CA 94104</textarea>
+      </div>
+
+      <!-- Client Details + Saved Client Memory -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">Bill To (Client)</h2>
+          <div class="flex items-center space-x-2">
+            <select id="savedClientsSelect" onchange="loadSelectedClient()" class="text-xs border border-slate-300 rounded-md px-2 py-1 bg-slate-50">
+              <option value="">Load Saved Client...</option>
+            </select>
+            <button onclick="saveCurrentClient()" title="Save Client to Browser" class="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md font-medium hover:bg-indigo-100 transition">
+              + Save
+            </button>
+          </div>
+        </div>
+        <input type="text" id="clientName" placeholder="Client Company Name" value="Horizon Ventures Inc." oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        <input type="email" id="clientEmail" placeholder="accounts@client.com" value="finance@horizon.vc" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        <textarea id="clientAddress" rows="2" placeholder="Client Billing Address" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">200 Park Avenue, New York, NY 10166</textarea>
+      </div>
+
+      <!-- Proposal Scope Summary (Visible in Proposal Mode) -->
+      <div id="proposalScopeCard" class="hidden bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">Project Overview & Scope</h2>
+        <textarea id="proposalSummary" rows="3" placeholder="Outline the project goals, timeline, and deliverables..." oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">Complete redesign of the core SaaS marketing web application, including high-converting landing pages, responsive component library, and interactive pricing calculators.</textarea>
+      </div>
+
+      <!-- Line Items Card -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">Line Items & Deliverables</h2>
+          <button onclick="addLineItem()" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Item
+          </button>
+        </div>
+
+        <div id="lineItemsContainer" class="space-y-3"></div>
+
+        <div class="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Tax Rate (%)</label>
+            <input type="number" id="taxRate" value="0" min="0" max="100" step="0.5" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Discount (%)</label>
+            <input type="number" id="discountRate" value="0" min="0" max="100" step="0.5" oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Terms & Notes -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">Payment Instructions / Terms</h2>
+        <textarea id="paymentNotes" rows="3" placeholder="Bank transfer details, Stripe/PayPal link, or terms..." oninput="updatePreview()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">Payment due within 14 days of issue.
+ACH / Wire: Silicon Valley Bank • Routing: 121140399 • Account: 3302918472
+Pay online via Stripe: https://buy.stripe.com/demo-link</textarea>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: LIVE DOCUMENT PREVIEW (7 cols) -->
+    <div class="lg:col-span-7">
+      <div class="sticky top-24">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i> Live A4 Document Preview
+          </span>
+          <span id="lockNoticeText" class="text-xs text-amber-600 font-medium flex items-center gap-1">
+            <i data-lucide="lock" class="w-3.5 h-3.5"></i> Watermarked until License Key is activated
+          </span>
+        </div>
+
+        <!-- PREVIEW PAPER CONTAINER -->
+        <div id="previewWrapper" oncontextmenu="return handleContextMenu(event)" class="relative bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden locked-preview">
+          
+          <!-- ANTI-SCREENSHOT DIAGONAL WATERMARK OVERLAY -->
+          <div id="watermarkOverlay" class="watermark-overlay absolute inset-0 z-20 flex flex-col items-center justify-around p-8 select-none">
+            <div class="transform -rotate-24 text-center opacity-25">
+              <p class="text-4xl sm:text-5xl font-extrabold tracking-widest text-slate-900 uppercase">PREVIEW ONLY</p>
+              <p class="text-sm font-bold tracking-wider text-slate-700 uppercase mt-1">Unlock License Key to Download Clean PDF</p>
+            </div>
+            <div class="transform -rotate-24 text-center opacity-25">
+              <p class="text-4xl sm:text-5xl font-extrabold tracking-widest text-slate-900 uppercase">NOT VALID FOR BILLING</p>
+              <p class="text-sm font-bold tracking-wider text-slate-700 uppercase mt-1">InvoicelyPro Sandbox Mode</p>
+            </div>
+          </div>
+
+          <!-- ACTUAL PRINTABLE DOCUMENT AREA -->
+          <div id="printableArea" class="p-8 sm:p-12 bg-white text-slate-800 min-h-[780px] flex flex-col justify-between">
+            <div>
+              <!-- Top Header -->
+              <div class="flex justify-between items-start pb-8 border-b border-slate-200">
+                <div>
+                  <img id="previewLogo" src="" alt="Logo" class="hidden max-h-14 mb-3 object-contain" />
+                  <h1 id="previewFromName" class="text-xl font-bold text-slate-900">Apex Digital Studio LLC</h1>
+                  <p id="previewFromEmail" class="text-xs text-slate-500 mt-0.5">hello@apexstudio.io</p>
+                  <p id="previewFromAddress" class="text-xs text-slate-500 whitespace-pre-line mt-1">548 Market St, Suite 32140, San Francisco, CA 94104</p>
+                </div>
+                <div class="text-right">
+                  <span id="previewDocBadge" class="inline-block text-2xl font-extrabold tracking-tight uppercase px-3 py-1 rounded text-white bg-indigo-600">
+                    INVOICE
+                  </span>
+                  <p class="text-xs text-slate-500 mt-3">Reference: <strong id="previewDocNumber" class="text-slate-800">INV-2026-001</strong></p>
+                  <p class="text-xs text-slate-500 mt-1">Issued: <span id="previewIssueDate"></span></p>
+                  <p class="text-xs text-slate-500 mt-1"><span id="previewDueLabel">Due Date:</span> <strong id="previewDueDate" class="text-slate-800"></strong></p>
+                </div>
+              </div>
+
+              <!-- Bill To Section -->
+              <div class="py-6">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1" id="previewClientHeader">Prepared For</p>
+                <h3 id="previewClientName" class="text-base font-bold text-slate-900">Horizon Ventures Inc.</h3>
+                <p id="previewClientEmail" class="text-xs text-slate-500">finance@horizon.vc</p>
+                <p id="previewClientAddress" class="text-xs text-slate-500 whitespace-pre-line mt-0.5">200 Park Avenue, New York, NY 10166</p>
+              </div>
+
+              <!-- Proposal Scope Box -->
+              <div id="previewProposalBox" class="hidden mb-6 p-4 rounded-lg bg-slate-50 border border-slate-200">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Executive Summary & Scope</p>
+                <p id="previewProposalText" class="text-xs text-slate-700 leading-relaxed whitespace-pre-line"></p>
+              </div>
+
+              <!-- Line Items Table -->
+              <table class="w-full text-left border-collapse mt-2">
+                <thead>
+                  <tr id="tableHeaderRow" class="border-b-2 border-slate-900 text-xs font-bold uppercase tracking-wider text-slate-600">
+                    <th class="py-3">Description</th>
+                    <th class="py-3 text-center w-20">Qty</th>
+                    <th class="py-3 text-right w-28">Rate</th>
+                    <th class="py-3 text-right w-28">Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="previewTableBody" class="divide-y divide-slate-200 text-sm"></tbody>
+              </table>
+
+              <!-- Totals Summary -->
+              <div class="mt-6 flex justify-end">
+                <div class="w-64 space-y-2 text-sm">
+                  <div class="flex justify-between text-slate-600">
+                    <span>Subtotal</span>
+                    <span id="previewSubtotal" class="font-medium">$0.00</span>
+                  </div>
+                  <div id="previewDiscountRow" class="hidden justify-between text-emerald-600">
+                    <span>Discount (<span id="previewDiscountPercent">0</span>%)</span>
+                    <span id="previewDiscountAmount">-$0.00</span>
+                  </div>
+                  <div id="previewTaxRow" class="hidden justify-between text-slate-600">
+                    <span>Tax (<span id="previewTaxPercent">0</span>%)</span>
+                    <span id="previewTaxAmount">$0.00</span>
+                  </div>
+                  <div class="flex justify-between text-base font-extrabold text-slate-900 pt-2 border-t-2 border-slate-900">
+                    <span id="previewTotalLabel">Total Due</span>
+                    <span id="previewGrandTotal">$0.00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer / Payment Notes -->
+            <div class="pt-8 mt-10 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-end gap-4">
+              <div class="max-w-md">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Terms & Payment Instructions</p>
+                <p id="previewNotes" class="text-xs text-slate-500 whitespace-pre-line leading-relaxed"></p>
+              </div>
+              <div id="proposalSignatureBlock" class="hidden text-right">
+                <div class="w-44 border-b border-slate-400 mb-1"></div>
+                <p class="text-[11px] text-slate-400">Authorized Client Signature & Date</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- PAYWALL & LICENSE KEY ACTIVATION MODAL -->
+  <div id="paywallModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-fadeIn">
+      <button onclick="closePaywallModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+          <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Unlock Clean PDF Exports</h3>
+          <p class="text-xs text-slate-500">Remove watermarks & unlock unlimited local client memory</p>
+        </div>
+      </div>
+
+      <!-- Pricing Tiers -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-5">
+        <a id="polarMonthlyLink" href="https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_WJ2iNpsnyIFvNuzQYf8bCSwC4WTXibyE7AINY0h999U/redirect" target="_blank" rel="noopener noreferrer" class="group border-2 border-slate-200 hover:border-indigo-600 rounded-xl p-4 transition flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Monthly Pass</span>
+            <div class="mt-1 flex items-baseline space-x-1">
+              <span class="text-2xl font-extrabold text-slate-900">$4.99</span>
+              <span class="text-xs text-slate-500">/ month</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">Instant License Key via email. Cancel anytime in 1 click.</p>
+          </div>
+          <span class="mt-4 inline-flex items-center justify-center w-full py-2 px-3 rounded-lg bg-slate-900 group-hover:bg-indigo-600 text-white text-xs font-semibold transition">
+            Get Monthly Key →
+          </span>
+        </a>
+
+        <a id="polarLifetimeLink" href="https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_WJ2iNpsnyIFvNuzQYf8bCSwC4WTXibyE7AINY0h999U/redirect" target="_blank" rel="noopener noreferrer" class="group border-2 border-indigo-600 bg-indigo-50/40 rounded-xl p-4 transition flex flex-col justify-between relative">
+          <span class="absolute -top-2.5 right-3 bg-indigo-600 text-white text-[10px] font-bold uppercase px-2 py-0.5 rounded-full">
+            Best Value
+          </span>
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-indigo-700">Pro Access</span>
+            <div class="mt-1 flex items-baseline space-x-1">
+              <span class="text-2xl font-extrabold text-slate-900">Instant</span>
+              <span class="text-xs text-slate-500">license</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-2">Unlock high-resolution PDF exports and local client storage on up to 3 devices.</p>
+          </div>
+          <span class="mt-4 inline-flex items-center justify-center w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition">
+            Checkout via Polar →
+          </span>
+        </a>
+      </div>
+
+      <div class="relative flex py-2 items-center">
+        <div class="flex-grow border-t border-slate-200"></div>
+        <span class="flex-shrink mx-3 text-xs font-medium text-slate-400 uppercase">Already have a Polar License Key?</span>
+        <div class="flex-grow border-t border-slate-200"></div>
+      </div>
+
+      <form id="licenseForm" onsubmit="handleLicenseSubmit(event)" class="mt-3 space-y-3">
+        <input type="text" name="username" autocomplete="username" value="InvoicelyPro-License" class="hidden" readonly />
+        
+        <div>
+          <label for="licenseKeyInput" class="block text-xs font-medium text-slate-700 mb-1">
+            Paste your Polar.sh License Key
+          </label>
+          <input
+            type="password"
+            id="licenseKeyInput"
+            name="password"
+            autocomplete="current-password"
+            required
+            placeholder="POLAR-XXXX-XXXX-XXXX-XXXX"
+            class="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+          />
+          <p class="text-[11px] text-slate-400 mt-1">
+            Tip: Allow your browser to "Save Password" when prompted so your key auto-fills across all your devices.
+          </p>
+        </div>
+
+        <p id="licenseErrorMsg" class="hidden text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5"></p>
+
+        <button
+          type="submit"
+          id="btnValidateKey"
+          class="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition shadow-sm flex items-center justify-center space-x-2"
+        >
+          <i data-lucide="unlock" class="w-4 h-4"></i>
+          <span id="validateBtnLabel">Activate Pro & Download PDF</span>
+        </button>
+      </form>
+
+      <div class="mt-4 text-center">
+        <a href="https://sandbox.polar.sh/purchases" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-400 hover:text-slate-600 underline">
+          Lost your key or need to manage your subscription? Visit Customer Portal
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const POLAR_ORGANIZATION_ID = "f4897b26-f2f5-4973-afd0-54776c6ea85a";
+    const POLAR_CHECKOUT_URL = "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_WJ2iNpsnyIFvNuzQYf8bCSwC4WTXibyE7AINY0h999U/redirect";
+    const POLAR_API_BASE = "https://sandbox-api.polar.sh";
+
+    let appState = {
+      isPro: false,
+      docType: "INVOICE",
+      accentColor: "#4f46e5",
+      logoDataUrl: "",
+      items: [
+        { description: "UI/UX Architecture & Responsive Design System", qty: 1, rate: 1850 },
+        { description: "Frontend Web Application Implementation", qty: 1, rate: 2400 }
+      ]
+    };
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      lucide.createIcons();
+
+      document.getElementById("polarMonthlyLink").href = POLAR_CHECKOUT_URL;
+      document.getElementById("polarLifetimeLink").href = POLAR_CHECKOUT_URL;
+
+      const today = new Date();
+      const next14 = new Date(today.getTime() + 14 * 86400000);
+      document.getElementById("previewIssueDate").textContent = today.toISOString().split("T")[0];
+      document.getElementById("dueDate").value = next14.toISOString().split("T")[0];
+
+      loadSavedWorkspace();
+      renderLineItemsEditor();
+      renderSavedClientsDropdown();
+      updatePreview();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlKey = urlParams.get("key");
+      if (urlKey) {
+        localStorage.setItem("invoicely_license_key", urlKey.trim());
+      }
+
+      const savedKey = localStorage.getItem("invoicely_license_key");
+      if (savedKey) {
+        const valid = await verifyPolarLicenseKey(savedKey, true);
+        if (valid) {
+          enableProMode(savedKey);
+        }
+      }
+    });
+
+    function getOrCreateDeviceId() {
+      let deviceId = localStorage.getItem("invoicely_device_id");
+      if (!deviceId) {
+        deviceId = "dev_" + Math.random().toString(36).substring(2, 11) + "_" + Date.now();
+        localStorage.setItem("invoicely_device_id", deviceId);
+      }
+      return deviceId;
+    }
+
+    async function verifyWithEndpoint(baseUrl, cleanKey, deviceId) {
+      let activationId = localStorage.getItem("invoicely_activation_id");
+      if (!activationId) {
+        try {
+          const actRes = await fetch(`${baseUrl}/v1/users/license-keys/activate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: cleanKey,
+              organization_id: POLAR_ORGANIZATION_ID,
+              label: `Browser (${navigator.platform || "Web"}) - ${deviceId}`
+            })
+          });
+
+          if (actRes.ok) {
+            const actData = await actRes.json();
+            if (actData && actData.id) {
+              activationId = actData.id;
+              localStorage.setItem("invoicely_activation_id", activationId);
+            }
+          }
+        } catch (e) {}
+      }
+
+      const validatePayload = {
+        key: cleanKey,
+        organization_id: POLAR_ORGANIZATION_ID
+      };
+      if (activationId) {
+        validatePayload.activation_id = activationId;
+      }
+
+      let response = await fetch(`${baseUrl}/v1/users/license-keys/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validatePayload)
+      });
+
+      if (!response.ok && activationId) {
+        localStorage.removeItem("invoicely_activation_id");
+        response = await fetch(`${baseUrl}/v1/users/license-keys/validate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: cleanKey,
+            organization_id: POLAR_ORGANIZATION_ID
+          })
+        });
+      }
+
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data && data.status === "granted";
+    }
+
+    async function verifyPolarLicenseKey(licenseKey, silent = false) {
+      const cleanKey = licenseKey.trim();
+      const deviceId = getOrCreateDeviceId();
+
+      try {
+        let isGranted = await verifyWithEndpoint(POLAR_API_BASE, cleanKey, deviceId);
+        if (!isGranted && POLAR_API_BASE.includes("sandbox")) {
+          isGranted = await verifyWithEndpoint("https://api.polar.sh", cleanKey, deviceId);
+        }
+
+        if (isGranted) {
+          return true;
+        } else {
+          if (!silent) {
+            showLicenseError("Invalid, expired, or canceled license key. Please verify your Polar.sh key.");
+          }
+          localStorage.removeItem("invoicely_license_key");
+          return false;
+        }
+      } catch (err) {
+        if (!silent) {
+          showLicenseError("Unable to reach Polar verification server. Please check your internet connection.");
+        }
+        return false;
+      }
+    }
+
+    async function handleLicenseSubmit(event) {
+      event.preventDefault();
+      const input = document.getElementById("licenseKeyInput");
+      const btnLabel = document.getElementById("validateBtnLabel");
+      const errorBox = document.getElementById("licenseErrorMsg");
+
+      errorBox.classList.add("hidden");
+      btnLabel.textContent = "Verifying with Polar.sh...";
+
+      const isValid = await verifyPolarLicenseKey(input.value, false);
+      btnLabel.textContent = "Activate Pro & Download PDF";
+
+      if (isValid) {
+        const cleanKey = input.value.trim();
+        localStorage.setItem("invoicely_license_key", cleanKey);
+        enableProMode(cleanKey);
+        closePaywallModal();
+        exportCleanPDF();
+      }
+    }
+
+    function enableProMode(licenseKey) {
+      appState.isPro = true;
+      document.body.classList.remove("is-locked");
+
+      document.getElementById("watermarkOverlay").classList.add("hidden");
+      document.getElementById("previewWrapper").classList.remove("locked-preview");
+
+      const badge = document.getElementById("statusBadge");
+      badge.textContent = "Pro Unlocked";
+      badge.className = "text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200";
+
+      document.getElementById("lockNoticeText").innerHTML = `<span class="text-emerald-600 flex items-center gap-1"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Ready for High-Resolution PDF Export</span>`;
+      document.getElementById("magicLinkBanner").classList.remove("hidden");
+
+      const newUrl = `${window.location.pathname}?key=${encodeURIComponent(licenseKey)}`;
+      window.history.replaceState({}, "", newUrl);
+      lucide.createIcons();
+    }
+
+    function showLicenseError(msg) {
+      const errorBox = document.getElementById("licenseErrorMsg");
+      errorBox.textContent = msg;
+      errorBox.classList.remove("hidden");
+    }
+
+    function copyMagicLink() {
+      const key = localStorage.getItem("invoicely_license_key");
+      const magicUrl = `${window.location.origin}${window.location.pathname}?key=${encodeURIComponent(key)}`;
+      navigator.clipboard.writeText(magicUrl);
+      alert("Magic auto-login link copied! Bookmark it (Ctrl+D / Cmd+D) for instant access anytime.");
+    }
+
+    function handleContextMenu(e) {
+      if (!appState.isPro) {
+        e.preventDefault();
+        openPaywallModal();
+        return false;
+      }
+      return true;
+    }
+
+    function handleExportClick() {
+      if (!appState.isPro) {
+        openPaywallModal();
+      } else {
+        exportCleanPDF();
+      }
+    }
+
+    function openPaywallModal() {
+      document.getElementById("paywallModal").classList.remove("hidden");
+    }
+
+    function closePaywallModal() {
+      document.getElementById("paywallModal").classList.add("hidden");
+    }
+
+    function setDocType(type) {
+      appState.docType = type;
+      const btnInv = document.getElementById("btnModeInvoice");
+      const btnProp = document.getElementById("btnModeProposal");
+      const scopeCard = document.getElementById("proposalScopeCard");
+      const previewScope = document.getElementById("previewProposalBox");
+      const sigBlock = document.getElementById("proposalSignatureBlock");
+      const convertBtn = document.getElementById("btnConvertToInvoice");
+      const docNumInput = document.getElementById("docNumber");
+
+      if (type === "PROPOSAL") {
+        btnProp.className = "px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition";
+        btnInv.className = "px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition";
+        scopeCard.classList.remove("hidden");
+        previewScope.classList.remove("hidden");
+        sigBlock.classList.remove("hidden");
+        convertBtn.classList.remove("hidden");
+        convertBtn.classList.add("flex");
+        document.getElementById("dueDateLabel").textContent = "Valid Until";
+        document.getElementById("previewDueLabel").textContent = "Valid Until:";
+        document.getElementById("previewTotalLabel").textContent = "Estimated Total";
+        if (docNumInput.value.startsWith("INV-")) {
+          docNumInput.value = docNumInput.value.replace("INV-", "PROP-");
+        }
+      } else {
+        btnInv.className = "px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition";
+        btnProp.className = "px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition";
+        scopeCard.classList.add("hidden");
+        previewScope.classList.add("hidden");
+        sigBlock.classList.add("hidden");
+        convertBtn.classList.add("hidden");
+        convertBtn.classList.remove("flex");
+        document.getElementById("dueDateLabel").textContent = "Due Date";
+        document.getElementById("previewDueLabel").textContent = "Due Date:";
+        document.getElementById("previewTotalLabel").textContent = "Total Due";
+        if (docNumInput.value.startsWith("PROP-")) {
+          docNumInput.value = docNumInput.value.replace("PROP-", "INV-");
+        }
+      }
+      updatePreview();
+    }
+
+    function convertToInvoice() {
+      setDocType("INVOICE");
+    }
+
+    function setAccentColor(color) {
+      appState.accentColor = color;
+      updatePreview();
+    }
+
+    function handleLogoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        appState.logoDataUrl = e.target.result;
+        localStorage.setItem("invoicely_logo", appState.logoDataUrl);
+        updatePreview();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderLineItemsEditor() {
+      const container = document.getElementById("lineItemsContainer");
+      container.innerHTML = "";
+
+      appState.items.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "grid grid-cols-12 gap-2 items-center";
+        row.innerHTML = `
+          <div class="col-span-6">
+            <input type="text" value="${item.description}" placeholder="Service or deliverable..." oninput="updateLineItem(${index}, 'description', this.value)" class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div class="col-span-2">
+            <input type="number" value="${item.qty}" min="1" oninput="updateLineItem(${index}, 'qty', this.value)" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-center focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div class="col-span-3">
+            <input type="number" value="${item.rate}" min="0" step="0.01" oninput="updateLineItem(${index}, 'rate', this.value)" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-right focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div class="col-span-1 text-right">
+            <button onclick="removeLineItem(${index})" class="text-slate-400 hover:text-red-600 text-sm font-bold px-1">×</button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function updateLineItem(index, field, value) {
+      if (field === "qty" || field === "rate") {
+        appState.items[index][field] = parseFloat(value) || 0;
+      } else {
+        appState.items[index][field] = value;
+      }
+      updatePreview();
+    }
+
+    function addLineItem() {
+      appState.items.push({ description: "Additional Consulting / Deliverable", qty: 1, rate: 500 });
+      renderLineItemsEditor();
+      updatePreview();
+    }
+
+    function removeLineItem(index) {
+      if (appState.items.length <= 1) return;
+      appState.items.splice(index, 1);
+      renderLineItemsEditor();
+      updatePreview();
+    }
+
+    function updatePreview() {
+      const currency = document.getElementById("currencySelect").value;
+      const badge = document.getElementById("previewDocBadge");
+      badge.textContent = appState.docType;
+      badge.style.backgroundColor = appState.accentColor;
+      document.getElementById("tableHeaderRow").style.borderColor = appState.accentColor;
+
+      const logoImg = document.getElementById("previewLogo");
+      if (appState.logoDataUrl) {
+        logoImg.src = appState.logoDataUrl;
+        logoImg.classList.remove("hidden");
+      } else {
+        logoImg.classList.add("hidden");
+      }
+
+      document.getElementById("previewDocNumber").textContent = document.getElementById("docNumber").value;
+      document.getElementById("previewDueDate").textContent = document.getElementById("dueDate").value;
+      document.getElementById("previewFromName").textContent = document.getElementById("fromName").value;
+      document.getElementById("previewFromEmail").textContent = document.getElementById("fromEmail").value;
+      document.getElementById("previewFromAddress").textContent = document.getElementById("fromAddress").value;
+      document.getElementById("previewClientName").textContent = document.getElementById("clientName").value;
+      document.getElementById("previewClientEmail").textContent = document.getElementById("clientEmail").value;
+      document.getElementById("previewClientAddress").textContent = document.getElementById("clientAddress").value;
+      document.getElementById("previewProposalText").textContent = document.getElementById("proposalSummary").value;
+      document.getElementById("previewNotes").textContent = document.getElementById("paymentNotes").value;
+
+      const tbody = document.getElementById("previewTableBody");
+      tbody.innerHTML = "";
+      let subtotal = 0;
+
+      appState.items.forEach((item) => {
+        const lineTotal = (item.qty || 0) * (item.rate || 0);
+        subtotal += lineTotal;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="py-3 font-medium text-slate-800">${item.description || "—"}</td>
+          <td class="py-3 text-center text-slate-600">${item.qty}</td>
+          <td class="py-3 text-right text-slate-600">${currency}${item.rate.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td class="py-3 text-right font-semibold text-slate-900">${currency}${lineTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const discountRate = parseFloat(document.getElementById("discountRate").value) || 0;
+      const taxRate = parseFloat(document.getElementById("taxRate").value) || 0;
+
+      const discountAmount = subtotal * (discountRate / 100);
+      const afterDiscount = subtotal - discountAmount;
+      const taxAmount = afterDiscount * (taxRate / 100);
+      const grandTotal = afterDiscount + taxAmount;
+
+      document.getElementById("previewSubtotal").textContent = `${currency}${subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const discRow = document.getElementById("previewDiscountRow");
+      if (discountRate > 0) {
+        discRow.classList.remove("hidden");
+        discRow.classList.add("flex");
+        document.getElementById("previewDiscountPercent").textContent = discountRate;
+        document.getElementById("previewDiscountAmount").textContent = `-${currency}${discountAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else {
+        discRow.classList.add("hidden");
+      }
+
+      const taxRow = document.getElementById("previewTaxRow");
+      if (taxRate > 0) {
+        taxRow.classList.remove("hidden");
+        taxRow.classList.add("flex");
+        document.getElementById("previewTaxPercent").textContent = taxRate;
+        document.getElementById("previewTaxAmount").textContent = `${currency}${taxAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else {
+        taxRow.classList.add("hidden");
+      }
+
+      document.getElementById("previewGrandTotal").textContent = `${currency}${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      saveWorkspaceToLocal();
+    }
+
+    function saveWorkspaceToLocal() {
+      const profile = {
+        fromName: document.getElementById("fromName").value,
+        fromEmail: document.getElementById("fromEmail").value,
+        fromAddress: document.getElementById("fromAddress").value,
+        paymentNotes: document.getElementById("paymentNotes").value,
+        currency: document.getElementById("currencySelect").value,
+        accentColor: appState.accentColor
+      };
+      localStorage.setItem("invoicely_sender_profile", JSON.stringify(profile));
+    }
+
+    function loadSavedWorkspace() {
+      const savedProfile = localStorage.getItem("invoicely_sender_profile");
+      if (savedProfile) {
+        try {
+          const data = JSON.parse(savedProfile);
+          if (data.fromName) document.getElementById("fromName").value = data.fromName;
+          if (data.fromEmail) document.getElementById("fromEmail").value = data.fromEmail;
+          if (data.fromAddress) document.getElementById("fromAddress").value = data.fromAddress;
+          if (data.paymentNotes) document.getElementById("paymentNotes").value = data.paymentNotes;
+          if (data.currency) document.getElementById("currencySelect").value = data.currency;
+          if (data.accentColor) appState.accentColor = data.accentColor;
+        } catch (e) {}
+      }
+      const savedLogo = localStorage.getItem("invoicely_logo");
+      if (savedLogo) {
+        appState.logoDataUrl = savedLogo;
+      }
+    }
+
+    function saveCurrentClient() {
+      const name = document.getElementById("clientName").value.trim();
+      const email = document.getElementById("clientEmail").value.trim();
+      const address = document.getElementById("clientAddress").value.trim();
+      if (!name) return alert("Please enter a Client Name first.");
+
+      const clients = JSON.parse(localStorage.getItem("invoicely_saved_clients") || "[]");
+      const existingIndex = clients.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
+      if (existingIndex >= 0) {
+        clients[existingIndex] = { name, email, address };
+      } else {
+        clients.push({ name, email, address });
+      }
+      localStorage.setItem("invoicely_saved_clients", JSON.stringify(clients));
+      renderSavedClientsDropdown();
+      alert(`Saved "${name}" to your browser directory!`);
+    }
+
+    function renderSavedClientsDropdown() {
+      const select = document.getElementById("savedClientsSelect");
+      const clients = JSON.parse(localStorage.getItem("invoicely_saved_clients") || "[]");
+      select.innerHTML = `<option value="">Load Saved Client (${clients.length})...</option>`;
+      clients.forEach((client, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = client.name;
+        select.appendChild(opt);
+      });
+    }
+
+    function loadSelectedClient() {
+      const idx = document.getElementById("savedClientsSelect").value;
+      if (idx === "") return;
+      const clients = JSON.parse(localStorage.getItem("invoicely_saved_clients") || "[]");
+      const client = clients[idx];
+      if (client) {
+        document.getElementById("clientName").value = client.name;
+        document.getElementById("clientEmail").value = client.email;
+        document.getElementById("clientAddress").value = client.address;
+        updatePreview();
+      }
+    }
+
+    function resetForm() {
+      if (confirm("Reset current document fields to default demo values?")) {
+        localStorage.removeItem("invoicely_sender_profile");
+        localStorage.removeItem("invoicely_logo");
+        window.location.reload();
+      }
+    }
+
+    function exportCleanPDF() {
+      const element = document.getElementById("printableArea");
+      const docNum = document.getElementById("docNumber").value || "Document";
+      const clientName = document.getElementById("clientName").value.replace(/[^a-z0-9]/gi, "_") || "Client";
+
+      const opt = {
+        margin: 0,
+        filename: `${docNum}_${clientName}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: "in", format: "letter", orientation: "portrait" }
+      };
+
+      html2pdf().set(opt).from(element).save();
+    }
+  </script>
+</body>
+</html>
